@@ -1,0 +1,103 @@
+# ============================================================
+# CI — data-platform-airflow
+#
+# Jobs:
+#   1. lint-dags   : Syntax check + import check tất cả DAG files
+#   2. build-image : Build Docker image (DAGs baked in) + push GHCR
+#
+# Image: ghcr.io/tungnt763/airflow:<git-sha>
+# Registry: GitHub Container Registry (GHCR) — dùng GITHUB_TOKEN, không cần secret riêng
+# ============================================================
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ghcr.io/tungnt763/airflow
+
+jobs:
+  # ----------------------------------------------------------
+  # JOB 1: Lint DAGs
+  # - Compile check: python -m py_compile (phát hiện SyntaxError)
+  # - Import check: đảm bảo không có import sai
+  # - Ruff: linter nhanh nhất cho Python
+  # ----------------------------------------------------------
+  lint-dags:
+    name: Lint DAGs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install ruff apache-airflow==2.10.4 apache-airflow-providers-cncf-kubernetes
+
+      - name: Syntax check (py_compile)
+        run: |
+          echo "==> Checking Python syntax..."
+          python -m py_compile dags/*.py
+          echo "Syntax check passed ✓"
+
+      - name: Ruff lint
+        run: |
+          echo "==> Running ruff..."
+          ruff check dags/ --select E,F,W --ignore E501
+          echo "Ruff lint passed ✓"
+
+  # ----------------------------------------------------------
+  # JOB 2: Build & Push Docker image
+  # DAGs được bake vào image → không cần kubectl cp thủ công
+  #
+  # Chỉ push image khi push lên main (không push khi PR)
+  # PR chỉ build để check Dockerfile hợp lệ
+  # ----------------------------------------------------------
+  build-image:
+    name: Build & Push Airflow Image
+    runs-on: ubuntu-latest
+    needs: lint-dags        # Chỉ build khi lint pass
+    permissions:
+      contents: read
+      packages: write       # Cần để push lên GHCR
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        if: github.event_name == 'push'   # Chỉ login khi push (không phải PR)
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}   # Token tự động, không cần tạo thêm
+
+      - name: Extract metadata (tags, labels)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_NAME }}
+          tags: |
+            type=sha,prefix=,format=short          # tag = git SHA ngắn (vd: a1b2c3d)
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile
+          push: ${{ github.event_name == 'push' }}  # Push chỉ khi push lên main
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha       # GitHub Actions cache — build nhanh hơn lần sau
+          cache-to: type=gha,mode=max
