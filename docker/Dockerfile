@@ -6,7 +6,8 @@ FROM apache/airflow:2.10.4-python3.11
 # Lợi ích: immutable image, rollback dễ dàng, mọi pod (scheduler/worker) dùng cùng DAGs
 COPY dags/ /opt/airflow/dags/
 
-# Providers cần thiết cho DAGs trong repo này
+# Providers cần thiết — dùng constraint file để đảm bảo tương thích với Airflow 2.10.4
 RUN pip install --no-cache-dir \
-    apache-airflow-providers-cncf-kubernetes==8.4.2 \
-    apache-airflow-providers-amazon==8.30.0
+    apache-airflow-providers-cncf-kubernetes \
+    apache-airflow-providers-amazon \
+    --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-2.10.4/constraints-3.11.txt"
