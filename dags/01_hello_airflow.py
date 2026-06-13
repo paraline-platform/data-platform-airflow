@@ -89,7 +89,7 @@ with DAG(
         ti = context["task_instance"]
         # pull XCom từ task "log_run_info" trong cùng DAG run
         data = ti.xcom_pull(task_ids="log_run_info")
-        print(f"=== Data từ task trước (XCom) ===")
+        print("=== Data từ task trước (XCom) ===")
         for key, val in (data or {}).items():
             print(f"  {key}: {val}")
         print("\n✓ DAG 01_hello_airflow hoàn thành thành công!")

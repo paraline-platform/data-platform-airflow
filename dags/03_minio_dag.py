@@ -59,14 +59,12 @@ def check_minio_connection(**context) -> list[str]:
     if TEST_BUCKET not in bucket_names:
         raise ValueError(f"Bucket '{TEST_BUCKET}' không tồn tại! Chạy MinIO setup trước.")
 
-    print(f"\n✓ MinIO kết nối thành công")
+    print("\n✓ MinIO kết nối thành công")
     return bucket_names   # push vào XCom
 
 
 def upload_data(**context) -> str:
     """Tạo JSON payload và upload lên MinIO."""
-    ti = context["task_instance"]
-
     # Tạo test payload với metadata của DAG run hiện tại
     payload = {
         "source": "airflow",

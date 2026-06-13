@@ -74,6 +74,9 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3   # Bắt buộc để dùng cache type=gha
+
       - name: Log in to GHCR
         if: github.event_name == 'push'   # Chỉ login khi push (không phải PR)
         uses: docker/login-action@v3
