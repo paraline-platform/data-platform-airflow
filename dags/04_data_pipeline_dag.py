@@ -39,7 +39,6 @@ import random
 from datetime import datetime
 
 from airflow import DAG
-from airflow.models import Variable
 from airflow.operators.python import PythonOperator, ShortCircuitOperator
 from airflow.utils.task_group import TaskGroup
 from airflow.utils.trigger_rule import TriggerRule
@@ -79,7 +78,6 @@ def ingest_raw_data(**context) -> dict:
 
     Thực tế: task này thay bằng connector đọc từ Kafka, database, API...
     """
-    run_id = context["run_id"]
     exec_date = str(context["logical_date"].date())
 
     # Tạo sample sales data

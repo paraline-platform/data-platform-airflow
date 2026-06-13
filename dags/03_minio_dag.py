@@ -116,10 +116,10 @@ def download_and_verify(**context) -> None:
     content = s3_obj.get()["Body"].read().decode("utf-8")
     data = json.loads(content)
 
-    print(f"✓ File tồn tại và đọc được")
+    print("✓ File tồn tại và đọc được")
     print(f"  dag_id: {data.get('dag_id')}")
     print(f"  Records: {len(data.get('data', []))}")
-    print(f"\n✓ MinIO read/write hoạt động đúng")
+    print("\n✓ MinIO read/write hoạt động đúng")
 
 
 def list_objects(**context) -> None:
