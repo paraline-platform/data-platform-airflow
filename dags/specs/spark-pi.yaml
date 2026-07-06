@@ -1,0 +1,39 @@
+# ============================================================
+# SPECS/SPARK-PI.YAML — SparkApplication Jinja template (P2.3)
+# ============================================================
+# ĐÂY LÀ JINJA TEMPLATE, không phải YAML thuần — được render bởi
+# SparkKubernetesOperator lúc task chạy (đuôi .yaml nằm trong template_ext
+# của operator nên nội dung file được load + render tự động).
+# Profile: {{ params.spark_profile }} (chọn lúc trigger) tra trong
+# Airflow Variable spark_profiles (inject qua AIRFLOW_VAR_SPARK_PROFILES).
+{% set profiles = var.json.get('spark_profiles', {}) %}
+{% set p = profiles.get(params.spark_profile, {'driver': {}, 'executor': {}}) %}
+apiVersion: sparkoperator.k8s.io/v1beta2
+kind: SparkApplication
+metadata:
+  # ts_nodash → tên unique per run → chạy lại không đụng SparkApplication cũ
+  name: spark-pi-{{ ts_nodash | lower }}
+  namespace: data-processing
+spec:
+  type: Scala
+  mode: cluster
+  image: apache/spark:3.5.3
+  imagePullPolicy: IfNotPresent
+  mainClass: org.apache.spark.examples.SparkPi
+  mainApplicationFile: local:///opt/spark/examples/jars/spark-examples_2.12-3.5.3.jar
+  arguments: ["50"]
+  sparkVersion: "3.5.3"
+  restartPolicy:
+    type: Never
+  driver:
+    serviceAccount: spark-operator-spark
+    labels: { trigger: airflow, profile: "{{ params.spark_profile }}" }
+    cores: {{ p.driver.get('cores', 1) }}
+    coreLimit: "{{ p.driver.get('coreLimit', '1') }}"
+    memory: "{{ p.driver.get('memory', '512m') }}"
+  executor:
+    labels: { trigger: airflow, profile: "{{ params.spark_profile }}" }
+    instances: {{ p.executor.get('instances', 1) }}
+    cores: {{ p.executor.get('cores', 1) }}
+    coreLimit: "{{ p.executor.get('coreLimit', '1') }}"
+    memory: "{{ p.executor.get('memory', '512m') }}"

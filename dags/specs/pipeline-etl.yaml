@@ -1,0 +1,37 @@
+# ============================================================
+# SPECS/PIPELINE-ETL.YAML — SparkApplication cho DAG 04 (P2.3)
+# ============================================================
+# Jinja template — render bởi SparkKubernetesOperator lúc task chạy.
+# NOTE: hiện dùng SparkPi làm placeholder ETL (như bản cũ) — thay
+# mainClass/mainApplicationFile bằng job thật khi có (image ghcr spark
+# của processing repo đã có sẵn Iceberg + S3A JARs).
+{% set profiles = var.json.get('spark_profiles', {}) %}
+{% set p = profiles.get(params.spark_profile, {'driver': {}, 'executor': {}}) %}
+apiVersion: sparkoperator.k8s.io/v1beta2
+kind: SparkApplication
+metadata:
+  name: pipeline-etl-{{ ts_nodash | lower }}
+  namespace: data-processing
+spec:
+  type: Scala
+  mode: cluster
+  image: apache/spark:3.5.3
+  imagePullPolicy: IfNotPresent
+  mainClass: org.apache.spark.examples.SparkPi
+  mainApplicationFile: local:///opt/spark/examples/jars/spark-examples_2.12-3.5.3.jar
+  arguments: ["10"]
+  sparkVersion: "3.5.3"
+  restartPolicy:
+    type: Never
+  driver:
+    serviceAccount: spark-operator-spark
+    labels: { trigger: airflow, profile: "{{ params.spark_profile }}" }
+    cores: {{ p.driver.get('cores', 1) }}
+    coreLimit: "{{ p.driver.get('coreLimit', '1') }}"
+    memory: "{{ p.driver.get('memory', '512m') }}"
+  executor:
+    labels: { trigger: airflow, profile: "{{ params.spark_profile }}" }
+    instances: {{ p.executor.get('instances', 1) }}
+    cores: {{ p.executor.get('cores', 1) }}
+    coreLimit: "{{ p.executor.get('coreLimit', '1') }}"
+    memory: "{{ p.executor.get('memory', '512m') }}"

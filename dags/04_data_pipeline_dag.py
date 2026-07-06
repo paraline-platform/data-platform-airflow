@@ -43,29 +43,19 @@ from airflow.operators.python import PythonOperator, ShortCircuitOperator
 from airflow.utils.task_group import TaskGroup
 from airflow.utils.trigger_rule import TriggerRule
 from airflow.providers.amazon.aws.hooks.s3 import S3Hook
-from spark_profiles import SparkJobConfig, make_spark_submit_task, spark_profile_param
+from airflow.providers.cncf.kubernetes.operators.spark_kubernetes import (
+    SparkKubernetesOperator,
+)
+
+from lib.spark_profiles import spark_profile_param
 
 # --- Config ---
 MINIO_CONN_ID = "minio_s3"
 LANDING_BUCKET = "landing"
 WAREHOUSE_BUCKET = "warehouse"
 
-SPARK_ETL = SparkJobConfig(
-    name="pipeline-etl",
-    main_class="org.apache.spark.examples.SparkPi",
-    main_application_file="local:///opt/spark/examples/jars/spark-examples_2.12-3.5.3.jar",
-    arguments=["10"],
-)
-
-
-# ============================================================
-# Helper: tạo Spark job name unique per run
-# ============================================================
-def get_spark_job_name(run_id: str) -> str:
-    """Tạo tên SparkApplication unique từ run_id (K8s name phải lowercase-alphanumeric)."""
-    safe = run_id.lower().replace("_", "-").replace(":", "-").replace("+", "-")
-    # K8s name max 63 chars, phải bắt đầu bằng letter
-    return f"pipeline-{safe[:50]}"
+# P2.3: SparkApplication spec = Jinja template dags/specs/pipeline-etl.yaml
+# (tên unique per run + profile render lúc chạy — không cần helper python)
 
 
 # ============================================================
@@ -205,11 +195,16 @@ with DAG(
         ingest_task >> gate
 
     # === SPARK PROCESSING ===
-    # SparkApplication spec — xử lý sales data từ landing → warehouse
-    # NOTE: Trong dev, Spark chưa có S3A JARs → job sẽ fail ở bước đọc MinIO
-    #       Điều này bình thường — vẫn verify được orchestration flow
+    # P2.3: operator thật (on_kill/retry/deferrable hoạt động).
+    # Spec + profile render từ dags/specs/pipeline-etl.yaml lúc task chạy.
     with TaskGroup(group_id="spark_processing") as spark_group:
-        submit = make_spark_submit_task("submit_spark", SPARK_ETL)
+        submit = SparkKubernetesOperator(
+            task_id="submit_spark",
+            namespace="data-processing",
+            application_file="specs/pipeline-etl.yaml",
+            kubernetes_conn_id="kubernetes_default",
+            do_xcom_push=False,
+        )
 
     # === VERIFY ===
     verify = PythonOperator(

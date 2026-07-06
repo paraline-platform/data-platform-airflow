@@ -5,6 +5,10 @@ Submit SparkPi job với resource profile được chọn lúc trigger.
 Xem kết quả Pi trong task logs.
 
 Trigger: UI → Trigger DAG w/ config → chọn spark_profile (small/medium/large/xlarge)
+
+P2.3: dùng SparkKubernetesOperator TRỰC TIẾP (không bọc trong PythonOperator)
+→ on_kill hoạt động (kill task = kill Spark job), retry/deferrable/UI chuẩn.
+Spec là Jinja template: dags/specs/spark-pi.yaml (profile render lúc chạy).
 """
 from __future__ import annotations
 
@@ -12,14 +16,11 @@ from datetime import datetime
 
 from airflow import DAG
 from airflow.operators.python import PythonOperator
-from spark_profiles import SparkJobConfig, make_spark_submit_task, spark_profile_param
-
-SPARK_PI = SparkJobConfig(
-    name="spark-pi-airflow",
-    main_class="org.apache.spark.examples.SparkPi",
-    main_application_file="local:///opt/spark/examples/jars/spark-examples_2.12-3.5.3.jar",
-    arguments=["50"],
+from airflow.providers.cncf.kubernetes.operators.spark_kubernetes import (
+    SparkKubernetesOperator,
 )
+
+from lib.spark_profiles import spark_profile_param
 
 with DAG(
     dag_id="02_spark_pi",
@@ -31,11 +32,17 @@ with DAG(
     params={"spark_profile": spark_profile_param()},
 ) as dag:
 
-    submit = make_spark_submit_task("submit_spark_pi", SPARK_PI)
+    submit = SparkKubernetesOperator(
+        task_id="submit_spark_pi",
+        namespace="data-processing",
+        application_file="specs/spark-pi.yaml",
+        kubernetes_conn_id="kubernetes_default",
+        do_xcom_push=False,
+    )
 
     def show_result(**context):
         print("Xem kết quả Pi trong logs của task 'submit_spark_pi'")
-        print("Hoặc: kubectl logs -n data-processing spark-pi-airflow-driver")
+        print("Hoặc: kubectl logs -n data-processing -l trigger=airflow --tail=50")
 
     result = PythonOperator(task_id="show_result", python_callable=show_result)
 
