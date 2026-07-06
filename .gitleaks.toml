@@ -1,0 +1,12 @@
+# ============================================================
+# GITLEAKS CONFIG — data-platform-airflow
+# ============================================================
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Tài liệu hướng dẫn có nhắc password dev mẫu (admin/airflow-dev) — không phải secret vận hành"
+paths = [
+  '''README\.md''',
+  '''scripts/deploy-dags\.sh''',
+]
