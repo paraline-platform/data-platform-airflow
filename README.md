@@ -10,7 +10,11 @@ dags/
   02_spark_pi_dag.py       # Spark Pi via SparkKubernetesOperator
   03_minio_dag.py          # MinIO read/write test
   04_data_pipeline_dag.py  # Full pipeline: ingest → Spark → dbt → verify
-  spark_profiles.py        # Spark resource profile helpers (reads Airflow Variable)
+  05_dbt_dag.py            # Chạy dbt (KubernetesPodOperator) trên lakehouse
+  lib/
+    spark_profiles.py      # Spark resource profile helpers (reads Airflow Variable)
+    dbt.py                 # dbt Param helpers (command/select dropdown)
+  specs/                   # SparkApplication Jinja templates (render bởi operator)
 docker/
   Dockerfile               # Custom Airflow image with DAGs baked in (Phase 3 CI)
 scripts/
@@ -48,3 +52,4 @@ kubectl exec -n data-orchestration <scheduler-pod> -- \
 | `spark_pi_dag` | SparkKubernetesOperator → Spark Operator |
 | `minio_dag` | S3Hook read/write to MinIO |
 | `data_pipeline` | Full ETL: S3 ingest → Spark → dbt → verify |
+| `05_dbt` | KubernetesPodOperator chạy dbt (run/test/build…) trên lakehouse; image + schema/threads do infra inject qua `AIRFLOW_VAR_DBT_IMAGE`/`AIRFLOW_VAR_DBT` |
